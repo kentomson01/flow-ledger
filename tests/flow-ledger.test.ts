@@ -24,3 +24,27 @@ function getFtTransfers(events: any[]): Array<{sender: string, recipient: string
       amount: BigInt(e.data.amount),
     }));
 }
+
+// ============================================================
+// Business Registration
+// ============================================================
+describe("Business Registration", () => {
+  it("registers a new business", () => {
+    const { result } = simnet.callPublicFn(contract, "register-business", [], wallet1);
+    expect(result).toBeOk(Cl.bool(true));
+  });
+
+  it("prevents duplicate registration", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    const { result } = simnet.callPublicFn(contract, "register-business", [], wallet1);
+    expect(result).toBeErr(Cl.uint(101));
+  });
+
+  it("returns business info after registration", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    const { result } = simnet.callReadOnlyFn(contract, "get-business-info", [Cl.principal(wallet1)], wallet1);
+    expect(result).toBeSome(
+      Cl.tuple({ registered: Cl.bool(true), "org-id": Cl.none() })
+    );
+  });
+});
