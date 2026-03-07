@@ -454,3 +454,97 @@ describe("Integration: Multi-Business Isolation", () => {
     expect(pay2.result).toBeOk(Cl.bool(true));
   });
 });
+
+describe("Integration: Event Emission Verification", () => {
+  it("STX payroll emits correct print event with all fields", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("EventCo")], wallet1);
+
+    const { events } = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet2), Cl.uint(7500000)],
+      wallet1
+    );
+
+    const printEvent = events.find((e: any) => e.event === "print_event");
+    expect(printEvent).toBeDefined();
+    const data = printEvent!.data;
+    expect(data.value).toBeTuple({
+      event: Cl.stringAscii("flowledger-payroll-payment"),
+      payer: Cl.principal(wallet1),
+      recipient: Cl.principal(wallet2),
+      amount: Cl.uint(7500000),
+    });
+  });
+
+  it("sBTC payroll emits correct print event with all fields", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("EventCo")], wallet1);
+
+    const { events } = simnet.callPublicFn(
+      contract, "execute-sbtc-payroll",
+      [Cl.principal(wallet2), Cl.uint(500000)],
+      wallet1
+    );
+
+    const printEvent = events.find((e: any) => e.event === "print_event");
+    expect(printEvent).toBeDefined();
+    const data = printEvent!.data;
+    expect(data.value).toBeTuple({
+      event: Cl.stringAscii("flowledger-sbtc-payroll"),
+      payer: Cl.principal(wallet1),
+      recipient: Cl.principal(wallet2),
+      amount: Cl.uint(500000),
+    });
+  });
+
+  it("STX batch payroll emits event with correct count and period", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("EventCo")], wallet1);
+
+    const recipients = Cl.list([
+      Cl.tuple({ to: Cl.principal(wallet2), ustx: Cl.uint(100000) }),
+      Cl.tuple({ to: Cl.principal(wallet3), ustx: Cl.uint(200000) }),
+    ]);
+
+    const { events } = simnet.callPublicFn(
+      contract, "execute-batch-payroll",
+      [recipients, Cl.stringAscii("Feb-2026")],
+      wallet1
+    );
+
+    const printEvent = events.find((e: any) => e.event === "print_event");
+    expect(printEvent).toBeDefined();
+    expect(printEvent!.data.value).toBeTuple({
+      event: Cl.stringAscii("flowledger-batch-payroll"),
+      payer: Cl.principal(wallet1),
+      "recipient-count": Cl.uint(2),
+      period: Cl.stringAscii("Feb-2026"),
+    });
+  });
+
+  it("sBTC batch payroll emits event with correct count and period", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("EventCo")], wallet1);
+
+    const recipients = Cl.list([
+      Cl.tuple({ to: Cl.principal(wallet2), amount: Cl.uint(50000) }),
+      Cl.tuple({ to: Cl.principal(wallet3), amount: Cl.uint(75000) }),
+    ]);
+
+    const { events } = simnet.callPublicFn(
+      contract, "execute-batch-sbtc-payroll",
+      [recipients, Cl.stringAscii("Feb-2026")],
+      wallet1
+    );
+
+    const printEvent = events.find((e: any) => e.event === "print_event");
+    expect(printEvent).toBeDefined();
+    expect(printEvent!.data.value).toBeTuple({
+      event: Cl.stringAscii("flowledger-batch-sbtc-payroll"),
+      payer: Cl.principal(wallet1),
+      "recipient-count": Cl.uint(2),
+      period: Cl.stringAscii("Feb-2026"),
+    });
+  });
+});
