@@ -334,3 +334,30 @@ describe("Integration: Full STX Payroll Workflow", () => {
     expect(payerBalanceBefore - payerBalanceAfter).toBe(8000000n);
   });
 });
+
+describe("Integration: Full sBTC Payroll Workflow", () => {
+  it("business onboards, pays freelancers in sBTC, verifies transfer events", () => {
+    // Step 1: Business setup
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("sBTC Corp")], wallet1);
+
+    // Step 2: Freelancers register
+    simnet.callPublicFn(contract, "register-freelancer", [], wallet2);
+    simnet.callPublicFn(contract, "register-freelancer", [], wallet3);
+
+    // Step 3: Pay freelancer in sBTC
+    const pay = simnet.callPublicFn(
+      contract, "execute-sbtc-payroll",
+      [Cl.principal(wallet2), Cl.uint(250000)],
+      wallet1
+    );
+    expect(pay.result).toBeOk(Cl.bool(true));
+
+    // Step 4: Verify sBTC transfer event
+    const ftTransfers = getFtTransfers(pay.events);
+    expect(ftTransfers.length).toBe(1);
+    expect(ftTransfers[0].sender).toBe(wallet1);
+    expect(ftTransfers[0].recipient).toBe(wallet2);
+    expect(ftTransfers[0].amount).toBe(250000n);
+  });
+});
