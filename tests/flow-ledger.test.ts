@@ -101,3 +101,53 @@ describe("Freelancer Registration", () => {
     expect(result).toBeBool(false);
   });
 });
+
+// ============================================================
+// STX Payroll
+// ============================================================
+describe("STX Payroll", () => {
+  it("executes a single STX payment", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+
+    const { result, events } = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet2), Cl.uint(1000000)],
+      wallet1
+    );
+    expect(result).toBeOk(Cl.bool(true));
+
+    const stxTransfer = events.find((e: any) => e.event === "stx_transfer_event");
+    expect(stxTransfer).toBeDefined();
+  });
+
+  it("fails for unregistered business", () => {
+    const { result } = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet2), Cl.uint(1000000)],
+      wallet3
+    );
+    expect(result).toBeErr(Cl.uint(102));
+  });
+
+  it("fails for business without an organization", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    const { result } = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet2), Cl.uint(1000000)],
+      wallet1
+    );
+    expect(result).toBeErr(Cl.uint(100));
+  });
+
+  it("fails for zero amount", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+    const { result } = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet2), Cl.uint(0)],
+      wallet1
+    );
+    expect(result).toBeErr(Cl.uint(105));
+  });
+});
