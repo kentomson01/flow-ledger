@@ -80,3 +80,24 @@ describe("Organization Management", () => {
     );
   });
 });
+
+// ============================================================
+// Freelancer Registration
+// ============================================================
+describe("Freelancer Registration", () => {
+  it("registers a freelancer", () => {
+    const { result } = simnet.callPublicFn(contract, "register-freelancer", [], wallet2);
+    expect(result).toBeOk(Cl.bool(true));
+  });
+
+  it("confirms freelancer is registered", () => {
+    simnet.callPublicFn(contract, "register-freelancer", [], wallet2);
+    const { result } = simnet.callReadOnlyFn(contract, "is-freelancer-registered", [Cl.principal(wallet2)], wallet2);
+    expect(result).toBeBool(true);
+  });
+
+  it("returns false for unregistered freelancer", () => {
+    const { result } = simnet.callReadOnlyFn(contract, "is-freelancer-registered", [Cl.principal(wallet3)], wallet3);
+    expect(result).toBeBool(false);
+  });
+});
