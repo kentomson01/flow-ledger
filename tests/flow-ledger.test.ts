@@ -151,3 +151,37 @@ describe("STX Payroll", () => {
     expect(result).toBeErr(Cl.uint(105));
   });
 });
+
+// ============================================================
+// STX Batch Payroll
+// ============================================================
+describe("STX Batch Payroll", () => {
+  it("executes batch payroll to multiple recipients", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+
+    const recipients = Cl.list([
+      Cl.tuple({ to: Cl.principal(wallet2), ustx: Cl.uint(500000) }),
+      Cl.tuple({ to: Cl.principal(wallet3), ustx: Cl.uint(300000) }),
+    ]);
+
+    const { result } = simnet.callPublicFn(
+      contract, "execute-batch-payroll",
+      [recipients, Cl.stringAscii("March-2026")],
+      wallet1
+    );
+    expect(result).toBeOk(Cl.bool(true));
+  });
+
+  it("fails for empty recipient list", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+
+    const { result } = simnet.callPublicFn(
+      contract, "execute-batch-payroll",
+      [Cl.list([]), Cl.stringAscii("March-2026")],
+      wallet1
+    );
+    expect(result).toBeErr(Cl.uint(105));
+  });
+});
