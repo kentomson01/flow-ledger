@@ -227,3 +227,37 @@
     error (err error)
   )
 )
+
+;; Execute Batch sBTC Payroll (up to 20 recipients in one transaction)
+(define-public (execute-batch-sbtc-payroll
+    (recipients (list 20 {
+      to: principal,
+      amount: uint,
+    }))
+    (period-ref (string-ascii 32))
+  )
+  (let (
+      (caller tx-sender)
+      (business (unwrap! (get-business-info caller) ERR-NOT-REGISTERED))
+      (count (len recipients))
+    )
+    ;; 1. Verify caller owns a FlowLedger organization
+    (asserts! (is-some (get org-id business)) ERR-NOT-AUTHORIZED)
+
+    ;; 2. Verify list is not empty
+    (asserts! (> count u0) ERR-INVALID-AMOUNT)
+
+    ;; 3. Execute all sBTC transfers using fold (atomic - all or nothing)
+    (try! (fold process-single-sbtc-payment recipients (ok true)))
+
+    ;; 4. Emit FlowLedger batch sBTC event
+    (print {
+      event: "flowledger-batch-sbtc-payroll",
+      payer: caller,
+      recipient-count: count,
+      period: period-ref,
+    })
+
+    (ok true)
+  )
+)
