@@ -171,3 +171,40 @@
     (ok true)
   )
 )
+
+;; --- FlowLedger sBTC Payroll ---
+
+;; Execute a single sBTC payroll payment
+(define-public (execute-sbtc-payroll
+    (recipient principal)
+    (amount uint)
+  )
+  (let (
+      (caller tx-sender)
+      (business (unwrap! (get-business-info caller) ERR-NOT-REGISTERED))
+    )
+    ;; 1. Check if caller owns a FlowLedger organization
+    (asserts! (is-some (get org-id business)) ERR-NOT-AUTHORIZED)
+
+    ;; 2. Validate amount
+    (asserts! (> amount u0) ERR-INVALID-AMOUNT)
+
+    ;; 3. Transfer sBTC via SIP-010 (literal required by contract-call?)
+    (unwrap!
+      (contract-call? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token
+        transfer amount caller recipient none
+      )
+      ERR-SBTC-TRANSFER-FAILED
+    )
+
+    ;; 4. Emit FlowLedger sBTC payment event
+    (print {
+      event: "flowledger-sbtc-payroll",
+      payer: caller,
+      recipient: recipient,
+      amount: amount,
+    })
+
+    (ok true)
+  )
+)
