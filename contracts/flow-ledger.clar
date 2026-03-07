@@ -137,3 +137,37 @@
     error (err error)
   )
 )
+
+;; Execute Batch Payroll via FlowLedger (up to 20 recipients in one transaction)
+(define-public (execute-batch-payroll
+    (recipients (list 20 {
+      to: principal,
+      ustx: uint,
+    }))
+    (period-ref (string-ascii 32))
+  )
+  (let (
+      (caller tx-sender)
+      (business (unwrap! (get-business-info caller) ERR-NOT-REGISTERED))
+      (count (len recipients))
+    )
+    ;; 1. Verify caller owns a FlowLedger organization
+    (asserts! (is-some (get org-id business)) ERR-NOT-AUTHORIZED)
+
+    ;; 2. Verify list is not empty
+    (asserts! (> count u0) ERR-INVALID-AMOUNT)
+
+    ;; 3. Execute all FlowLedger transfers using fold (atomic - all or nothing)
+    (try! (fold process-single-payment recipients (ok true)))
+
+    ;; 4. Emit FlowLedger batch event
+    (print {
+      event: "flowledger-batch-payroll",
+      payer: caller,
+      recipient-count: count,
+      period: period-ref,
+    })
+
+    (ok true)
+  )
+)
