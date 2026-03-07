@@ -87,3 +87,38 @@
     (ok new-id)
   )
 )
+
+;; Register a freelancer in the FlowLedger registry
+(define-public (register-freelancer)
+  (ok (map-set freelancer-registry tx-sender { registered: true }))
+)
+
+;; Execute a single payroll payment via FlowLedger (STX Transfer)
+(define-public (execute-payroll
+    (recipient principal)
+    (amount uint)
+  )
+  (let (
+      (caller tx-sender)
+      (business (unwrap! (get-business-info caller) ERR-NOT-REGISTERED))
+    )
+    ;; 1. Check if caller owns a FlowLedger organization
+    (asserts! (is-some (get org-id business)) ERR-NOT-AUTHORIZED)
+
+    ;; 2. Validate amount
+    (asserts! (> amount u0) ERR-INVALID-AMOUNT)
+
+    ;; 3. Transfer STX
+    (try! (stx-transfer? amount caller recipient))
+
+    ;; 4. Emit FlowLedger payment event
+    (print {
+      event: "flowledger-payroll-payment",
+      payer: caller,
+      recipient: recipient,
+      amount: amount,
+    })
+
+    (ok true)
+  )
+)
