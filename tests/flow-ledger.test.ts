@@ -361,3 +361,56 @@ describe("Integration: Full sBTC Payroll Workflow", () => {
     expect(ftTransfers[0].amount).toBe(250000n);
   });
 });
+
+describe("Integration: Batch Payroll with Balance Verification", () => {
+  it("STX batch payroll debits payer and credits all recipients atomically", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("BatchCo")], wallet1);
+
+    const payerBefore = getStxBalance(wallet1);
+    const r1Before = getStxBalance(wallet2);
+    const r2Before = getStxBalance(wallet3);
+
+    const recipients = Cl.list([
+      Cl.tuple({ to: Cl.principal(wallet2), ustx: Cl.uint(1000000) }),
+      Cl.tuple({ to: Cl.principal(wallet3), ustx: Cl.uint(2000000) }),
+    ]);
+
+    const { result } = simnet.callPublicFn(
+      contract, "execute-batch-payroll",
+      [recipients, Cl.stringAscii("Q1-2026")],
+      wallet1
+    );
+    expect(result).toBeOk(Cl.bool(true));
+
+    const payerAfter = getStxBalance(wallet1);
+    const r1After = getStxBalance(wallet2);
+    const r2After = getStxBalance(wallet3);
+
+    expect(payerBefore - payerAfter).toBe(3000000n);
+    expect(r1After - r1Before).toBe(1000000n);
+    expect(r2After - r2Before).toBe(2000000n);
+  });
+
+  it("sBTC batch payroll transfers correct amounts to all recipients atomically", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("sBatchCo")], wallet1);
+
+    const recipients = Cl.list([
+      Cl.tuple({ to: Cl.principal(wallet2), amount: Cl.uint(100000) }),
+      Cl.tuple({ to: Cl.principal(wallet3), amount: Cl.uint(200000) }),
+    ]);
+
+    const { result, events } = simnet.callPublicFn(
+      contract, "execute-batch-sbtc-payroll",
+      [recipients, Cl.stringAscii("Q1-2026")],
+      wallet1
+    );
+    expect(result).toBeOk(Cl.bool(true));
+
+    const ftTransfers = getFtTransfers(events);
+    expect(ftTransfers.length).toBe(2);
+    expect(ftTransfers[0]).toEqual({ sender: wallet1, recipient: wallet2, amount: 100000n });
+    expect(ftTransfers[1]).toEqual({ sender: wallet1, recipient: wallet3, amount: 200000n });
+  });
+});
