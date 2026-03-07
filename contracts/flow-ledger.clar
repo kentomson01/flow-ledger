@@ -122,3 +122,18 @@
     (ok true)
   )
 )
+
+;; --- FlowLedger Batch Payroll ---
+;; Private helper: process a single payment in the FlowLedger batch
+(define-private (process-single-payment
+    (entry {
+      to: principal,
+      ustx: uint,
+    })
+    (prev-result (response bool uint))
+  )
+  (match prev-result
+    success (stx-transfer? (get ustx entry) tx-sender (get to entry))
+    error (err error)
+  )
+)
