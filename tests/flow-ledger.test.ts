@@ -414,3 +414,43 @@ describe("Integration: Batch Payroll with Balance Verification", () => {
     expect(ftTransfers[1]).toEqual({ sender: wallet1, recipient: wallet3, amount: 200000n });
   });
 });
+
+describe("Integration: Multi-Business Isolation", () => {
+  it("two businesses operate independently with separate orgs", () => {
+    // Business 1 registers and creates org
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    const org1 = simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Company A")], wallet1);
+    expect(org1.result).toBeOk(Cl.uint(1));
+
+    // Business 2 registers and creates org
+    simnet.callPublicFn(contract, "register-business", [], wallet2);
+    const org2 = simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Company B")], wallet2);
+    expect(org2.result).toBeOk(Cl.uint(2));
+
+    // Each org has its own ID and owner
+    const info1 = simnet.callReadOnlyFn(contract, "get-org-info", [Cl.uint(1)], wallet1);
+    expect(info1.result).toBeSome(
+      Cl.tuple({ owner: Cl.principal(wallet1), name: Cl.stringAscii("Company A") })
+    );
+
+    const info2 = simnet.callReadOnlyFn(contract, "get-org-info", [Cl.uint(2)], wallet2);
+    expect(info2.result).toBeSome(
+      Cl.tuple({ owner: Cl.principal(wallet2), name: Cl.stringAscii("Company B") })
+    );
+
+    // Both can pay wallet3 independently
+    const pay1 = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet3), Cl.uint(1000000)],
+      wallet1
+    );
+    expect(pay1.result).toBeOk(Cl.bool(true));
+
+    const pay2 = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet3), Cl.uint(2000000)],
+      wallet2
+    );
+    expect(pay2.result).toBeOk(Cl.bool(true));
+  });
+});
