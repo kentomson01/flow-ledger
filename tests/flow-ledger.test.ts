@@ -185,3 +185,50 @@ describe("STX Batch Payroll", () => {
     expect(result).toBeErr(Cl.uint(105));
   });
 });
+
+// ============================================================
+// sBTC Payroll
+// ============================================================
+describe("sBTC Payroll", () => {
+  it("executes a single sBTC payment", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+
+    const { result } = simnet.callPublicFn(
+      contract, "execute-sbtc-payroll",
+      [Cl.principal(wallet2), Cl.uint(100000)],
+      wallet1
+    );
+    expect(result).toBeOk(Cl.bool(true));
+  });
+
+  it("fails for unregistered business", () => {
+    const { result } = simnet.callPublicFn(
+      contract, "execute-sbtc-payroll",
+      [Cl.principal(wallet2), Cl.uint(100000)],
+      wallet3
+    );
+    expect(result).toBeErr(Cl.uint(102));
+  });
+
+  it("fails for business without an organization", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    const { result } = simnet.callPublicFn(
+      contract, "execute-sbtc-payroll",
+      [Cl.principal(wallet2), Cl.uint(100000)],
+      wallet1
+    );
+    expect(result).toBeErr(Cl.uint(100));
+  });
+
+  it("fails for zero amount", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+    const { result } = simnet.callPublicFn(
+      contract, "execute-sbtc-payroll",
+      [Cl.principal(wallet2), Cl.uint(0)],
+      wallet1
+    );
+    expect(result).toBeErr(Cl.uint(105));
+  });
+});
