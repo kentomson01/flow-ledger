@@ -48,3 +48,35 @@ describe("Business Registration", () => {
     );
   });
 });
+
+// ============================================================
+// Organization Management
+// ============================================================
+describe("Organization Management", () => {
+  it("creates an organization for a registered business", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    const { result } = simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+    expect(result).toBeOk(Cl.uint(1));
+  });
+
+  it("fails if business is not registered", () => {
+    const { result } = simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Unknown")], wallet2);
+    expect(result).toBeErr(Cl.uint(102));
+  });
+
+  it("prevents creating a second organization", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+    const { result } = simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme 2")], wallet1);
+    expect(result).toBeErr(Cl.uint(103));
+  });
+
+  it("returns org info after creation", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+    const { result } = simnet.callReadOnlyFn(contract, "get-org-info", [Cl.uint(1)], wallet1);
+    expect(result).toBeSome(
+      Cl.tuple({ owner: Cl.principal(wallet1), name: Cl.stringAscii("Acme Corp") })
+    );
+  });
+});
