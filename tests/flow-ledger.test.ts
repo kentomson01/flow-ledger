@@ -548,3 +548,41 @@ describe("Integration: Event Emission Verification", () => {
     });
   });
 });
+
+describe("Integration: Mixed STX + sBTC Payroll in Sequence", () => {
+  it("business pays some freelancers in STX and others in sBTC in one session", () => {
+    // Setup
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("MixedPay Inc")], wallet1);
+    simnet.callPublicFn(contract, "register-freelancer", [], wallet2);
+    simnet.callPublicFn(contract, "register-freelancer", [], wallet3);
+
+    // Record STX starting balance
+    const stxBefore2 = getStxBalance(wallet2);
+
+    // Pay wallet2 in STX
+    const stxPay = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet2), Cl.uint(4000000)],
+      wallet1
+    );
+    expect(stxPay.result).toBeOk(Cl.bool(true));
+
+    // Pay wallet3 in sBTC
+    const sbtcPay = simnet.callPublicFn(
+      contract, "execute-sbtc-payroll",
+      [Cl.principal(wallet3), Cl.uint(150000)],
+      wallet1
+    );
+    expect(sbtcPay.result).toBeOk(Cl.bool(true));
+
+    // Verify wallet2 got STX
+    const stxAfter2 = getStxBalance(wallet2);
+    expect(stxAfter2 - stxBefore2).toBe(4000000n);
+
+    // Verify wallet3 got sBTC via transfer event
+    const ftTransfers = getFtTransfers(sbtcPay.events);
+    expect(ftTransfers.length).toBe(1);
+    expect(ftTransfers[0]).toEqual({ sender: wallet1, recipient: wallet3, amount: 150000n });
+  });
+});
