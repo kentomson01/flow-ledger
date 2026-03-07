@@ -278,3 +278,59 @@ describe("sBTC Batch Payroll", () => {
     expect(result).toBeErr(Cl.uint(102));
   });
 });
+
+// ============================================================
+// INTEGRATION TESTS
+// ============================================================
+
+describe("Integration: Full STX Payroll Workflow", () => {
+  it("business registers, creates org, freelancers register, pays them, verifies balances", () => {
+    // Step 1: Business registers
+    const reg = simnet.callPublicFn(contract, "register-business", [], wallet1);
+    expect(reg.result).toBeOk(Cl.bool(true));
+
+    // Step 2: Business creates organization
+    const org = simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+    expect(org.result).toBeOk(Cl.uint(1));
+
+    // Step 3: Verify business state updated with org-id
+    const bizInfo = simnet.callReadOnlyFn(contract, "get-business-info", [Cl.principal(wallet1)], wallet1);
+    expect(bizInfo.result).toBeSome(
+      Cl.tuple({ registered: Cl.bool(true), "org-id": Cl.some(Cl.uint(1)) })
+    );
+
+    // Step 4: Freelancers register
+    simnet.callPublicFn(contract, "register-freelancer", [], wallet2);
+    simnet.callPublicFn(contract, "register-freelancer", [], wallet3);
+
+    // Step 5: Get balances before payroll
+    const payerBalanceBefore = getStxBalance(wallet1);
+    const recipient1Before = getStxBalance(wallet2);
+    const recipient2Before = getStxBalance(wallet3);
+
+    // Step 6: Execute single STX payment to freelancer 1
+    const pay1 = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet2), Cl.uint(5000000)],
+      wallet1
+    );
+    expect(pay1.result).toBeOk(Cl.bool(true));
+
+    // Step 7: Execute single STX payment to freelancer 2
+    const pay2 = simnet.callPublicFn(
+      contract, "execute-payroll",
+      [Cl.principal(wallet3), Cl.uint(3000000)],
+      wallet1
+    );
+    expect(pay2.result).toBeOk(Cl.bool(true));
+
+    // Step 8: Verify balances after payments
+    const payerBalanceAfter = getStxBalance(wallet1);
+    const recipient1After = getStxBalance(wallet2);
+    const recipient2After = getStxBalance(wallet3);
+
+    expect(recipient1After - recipient1Before).toBe(5000000n);
+    expect(recipient2After - recipient2Before).toBe(3000000n);
+    expect(payerBalanceBefore - payerBalanceAfter).toBe(8000000n);
+  });
+});
