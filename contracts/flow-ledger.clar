@@ -35,3 +35,26 @@
   principal
   { registered: bool }
 )
+;; Data Vars
+(define-data-var last-org-id uint u0)
+;; --- Read-Only Functions ---
+(define-read-only (get-business-info (business principal))
+  (map-get? businesses business)
+)
+(define-read-only (get-org-info (org-id uint))
+  (map-get? organizations org-id)
+)
+(define-read-only (is-freelancer-registered (freelancer principal))
+  (default-to false (get registered (map-get? freelancer-registry freelancer)))
+)
+;; --- Public Functions ---
+;; Register a business wallet with FlowLedger
+(define-public (register-business)
+  (let ((caller tx-sender))
+    (asserts! (is-none (get-business-info caller)) ERR-ALREADY-REGISTERED)
+    (ok (map-set businesses caller {
+      registered: true,
+      org-id: none,
+    }))
+  )
+)
