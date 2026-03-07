@@ -232,3 +232,49 @@ describe("sBTC Payroll", () => {
     expect(result).toBeErr(Cl.uint(105));
   });
 });
+
+// ============================================================
+// sBTC Batch Payroll
+// ============================================================
+describe("sBTC Batch Payroll", () => {
+  it("executes batch sBTC payroll to multiple recipients", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+
+    const recipients = Cl.list([
+      Cl.tuple({ to: Cl.principal(wallet2), amount: Cl.uint(50000) }),
+      Cl.tuple({ to: Cl.principal(wallet3), amount: Cl.uint(30000) }),
+    ]);
+
+    const { result } = simnet.callPublicFn(
+      contract, "execute-batch-sbtc-payroll",
+      [recipients, Cl.stringAscii("March-2026")],
+      wallet1
+    );
+    expect(result).toBeOk(Cl.bool(true));
+  });
+
+  it("fails for empty recipient list", () => {
+    simnet.callPublicFn(contract, "register-business", [], wallet1);
+    simnet.callPublicFn(contract, "create-organization", [Cl.stringAscii("Acme Corp")], wallet1);
+
+    const { result } = simnet.callPublicFn(
+      contract, "execute-batch-sbtc-payroll",
+      [Cl.list([]), Cl.stringAscii("March-2026")],
+      wallet1
+    );
+    expect(result).toBeErr(Cl.uint(105));
+  });
+
+  it("fails for unregistered business", () => {
+    const recipients = Cl.list([
+      Cl.tuple({ to: Cl.principal(wallet2), amount: Cl.uint(50000) }),
+    ]);
+    const { result } = simnet.callPublicFn(
+      contract, "execute-batch-sbtc-payroll",
+      [recipients, Cl.stringAscii("March-2026")],
+      wallet3
+    );
+    expect(result).toBeErr(Cl.uint(102));
+  });
+});
