@@ -208,3 +208,22 @@
     (ok true)
   )
 )
+
+;; Private helper: process a single sBTC payment in a batch
+(define-private (process-single-sbtc-payment
+    (entry {
+      to: principal,
+      amount: uint,
+    })
+    (prev-result (response bool uint))
+  )
+  (match prev-result
+    success (match (contract-call? 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token
+      transfer (get amount entry) tx-sender (get to entry) none
+    )
+      ok-val (ok true)
+      err-val (err u108)
+    )
+    error (err error)
+  )
+)
