@@ -1,10 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useApp } from "@/contexts/AppContext";
+import { truncateAddress } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { motion } from "framer-motion";
-import { Zap, Coins, Users, Wallet, Building2, UserPlus, CreditCard, ArrowRight, Github, Twitter, Menu } from "lucide-react";
+import { Zap, Coins, Users, Wallet, Building2, UserPlus, CreditCard, ArrowRight, Github, Twitter, Menu, LayoutDashboard, LogOut, ChevronDown } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
 const fadeUp = {
@@ -37,7 +46,11 @@ const steps = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { wallet, role, disconnectWallet } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const dashboardPath = role === "freelancer" ? "/freelancer" : "/dashboard";
+  const handleGetStarted = () => navigate(wallet.connected ? dashboardPath : "/connect");
 
   return (
     <div className="min-h-screen bg-background">
@@ -59,9 +72,30 @@ export default function LandingPage() {
             <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={() => navigate("/connect")} className="gradient-primary border-0 text-white hover:opacity-90 hidden sm:inline-flex">
-              <Wallet className="mr-2 h-4 w-4" /> Connect Wallet
-            </Button>
+            {wallet.connected && wallet.address ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="hidden sm:inline-flex gap-2">
+                    <Wallet className="h-4 w-4 text-primary" />
+                    <span className="font-mono text-xs">{truncateAddress(wallet.address)}</span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => navigate(dashboardPath)}>
+                    <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => { disconnectWallet(); }} className="text-destructive focus:text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" /> Disconnect
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button onClick={() => navigate("/connect")} className="gradient-primary border-0 text-white hover:opacity-90 hidden sm:inline-flex">
+                <Wallet className="mr-2 h-4 w-4" /> Connect Wallet
+              </Button>
+            )}
             {/* Mobile hamburger */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
@@ -73,9 +107,24 @@ export default function LandingPage() {
                 <nav className="flex flex-col gap-4 mt-8">
                   <a href="#features" onClick={() => setMobileOpen(false)} className="text-sm font-medium py-2 hover:text-primary transition-colors">Features</a>
                   <a href="#how-it-works" onClick={() => setMobileOpen(false)} className="text-sm font-medium py-2 hover:text-primary transition-colors">How It Works</a>
-                  <Button onClick={() => { setMobileOpen(false); navigate("/connect"); }} className="gradient-primary border-0 text-white hover:opacity-90 mt-4">
-                    <Wallet className="mr-2 h-4 w-4" /> Connect Wallet
-                  </Button>
+                  {wallet.connected && wallet.address ? (
+                    <>
+                      <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                        <Wallet className="h-4 w-4 text-primary" />
+                        <span className="font-mono text-xs">{truncateAddress(wallet.address)}</span>
+                      </div>
+                      <Button onClick={() => { setMobileOpen(false); navigate(dashboardPath); }} variant="outline" className="justify-start">
+                        <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
+                      </Button>
+                      <Button onClick={() => { setMobileOpen(false); disconnectWallet(); }} variant="ghost" className="justify-start text-destructive hover:text-destructive">
+                        <LogOut className="mr-2 h-4 w-4" /> Disconnect
+                      </Button>
+                    </>
+                  ) : (
+                    <Button onClick={() => { setMobileOpen(false); navigate("/connect"); }} className="gradient-primary border-0 text-white hover:opacity-90 mt-4">
+                      <Wallet className="mr-2 h-4 w-4" /> Connect Wallet
+                    </Button>
+                  )}
                 </nav>
               </SheetContent>
             </Sheet>
@@ -104,7 +153,7 @@ export default function LandingPage() {
             Pay your team in STX or sBTC with full on-chain accountability.
           </motion.p>
           <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" onClick={() => navigate("/connect")} className="gradient-primary border-0 text-white hover:opacity-90 text-base px-8">
+            <Button size="lg" onClick={handleGetStarted} className="gradient-primary border-0 text-white hover:opacity-90 text-base px-8">
               Get Started <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             <Button size="lg" variant="outline" onClick={() => {
@@ -209,7 +258,7 @@ export default function LandingPage() {
             Join the future of transparent, Bitcoin-secured compensation.
           </motion.p>
           <motion.div variants={fadeUp} custom={2} initial="hidden" whileInView="visible" viewport={{ once: true }}>
-            <Button size="lg" onClick={() => navigate("/connect")} className="gradient-primary border-0 text-white hover:opacity-90 text-base px-8">
+            <Button size="lg" onClick={handleGetStarted} className="gradient-primary border-0 text-white hover:opacity-90 text-base px-8">
               Connect Wallet & Start <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </motion.div>
