@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from "react";
-import { disconnect as walletDisconnect } from "@stacks/connect";
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
+import { disconnect as walletDisconnect, isConnected as walletIsConnected, getLocalStorage } from "@stacks/connect";
+import { fetchStxBalance, fetchSbtcBalance } from "@/lib/stacks-api";
 
 type Role = "business" | "freelancer" | null;
 type Theme = "dark" | "light" | "system";
@@ -86,6 +87,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
       localStorage.setItem("flowledger-network", network);
     }, [network]);
+
+    // Restore wallet session from @stacks/connect on mount / refresh
+    useEffect(() => {
+      if (!walletIsConnected()) {
+        // Stacks Connect session gone — clear our local state too
+        if (wallet.connected) {
+          setWalletState({ connected: false, address: null, stxBalance: 0, sbtcBalance: 0 });
+          localStorage.removeItem("flowledger-wallet");
+        }
+        return;
+      }
+
+      const data = getLocalStorage();
+      const stxEntry = data?.addresses?.stx?.[0];
+      if (!stxEntry?.address) return;
+
+      if (wallet.connected && wallet.address === stxEntry.address) {
+        // Already connected with the same address — just refresh balances
+        Promise.all([
+          fetchStxBalance(stxEntry.address, network),
+          fetchSbtcBalance(stxEntry.address, network),
+        ]).then(([stxBal, sbtcBal]) => {
+          setWalletState((prev) => ({ ...prev, stxBalance: stxBal, sbtcBalance: sbtcBal }));
+          localStorage.setItem("flowledger-wallet", JSON.stringify({ connected: true, address: stxEntry.address, stxBalance: stxBal, sbtcBalance: sbtcBal }));
+        });
+        return;
+      }
+
+      const address = stxEntry.address;
+      // Set immediately with zero balances, then fetch real ones
+      setWalletState({ connected: true, address, stxBalance: 0, sbtcBalance: 0 });
+
+      Promise.all([
+        fetchStxBalance(address, network),
+        fetchSbtcBalance(address, network),
+      ]).then(([stxBal, sbtcBal]) => {
+        setWalletState((prev) => ({ ...prev, stxBalance: stxBal, sbtcBalance: sbtcBal }));
+        localStorage.setItem("flowledger-wallet", JSON.stringify({ connected: true, address, stxBalance: stxBal, sbtcBalance: sbtcBal }));
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const toggleTheme = () =>
       setThemeState((t) => {

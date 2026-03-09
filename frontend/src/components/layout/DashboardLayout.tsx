@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
@@ -6,12 +6,20 @@ import { BottomNav } from "./BottomNav";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PageTransition } from "@/components/PageTransition";
 import { useApp } from "@/contexts/AppContext";
-import { Moon, Sun, Wallet } from "lucide-react";
+import { Moon, Sun, Wallet, ChevronDown, Home, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { truncateAddress } from "@/lib/mock-data";
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { wallet, resolvedTheme, toggleTheme } = useApp();
+  const { wallet, resolvedTheme, toggleTheme, disconnectWallet } = useApp();
+  const navigate = useNavigate();
 
   return (
     <SidebarProvider>
@@ -34,10 +42,24 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
               {wallet.connected && wallet.address && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-secondary text-sm">
-                  <Wallet className="h-3.5 w-3.5 text-primary" />
-                  <span className="font-mono text-xs">{truncateAddress(wallet.address)}</span>
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-secondary text-sm hover:bg-secondary/80 transition-colors cursor-pointer">
+                      <Wallet className="h-3.5 w-3.5 text-primary" />
+                      <span className="font-mono text-xs">{truncateAddress(wallet.address)}</span>
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem onClick={() => navigate("/")}>
+                      <Home className="mr-2 h-4 w-4" /> Home
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => { disconnectWallet(); navigate("/"); }} className="text-destructive focus:text-destructive">
+                      <LogOut className="mr-2 h-4 w-4" /> Disconnect
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </header>

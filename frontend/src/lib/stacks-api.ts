@@ -2,6 +2,8 @@ import {
   fetchCallReadOnlyFunction,
   standardPrincipalCV,
   ClarityType,
+  type TupleCV,
+  type UIntCV,
 } from "@stacks/transactions";
 import {
   CONTRACT_ADDRESS,
@@ -62,11 +64,11 @@ export async function fetchBusinessInfo(
     });
 
     if (result.type === ClarityType.OptionalSome) {
-      const tuple = result.value;
-      const orgIdVal = tuple.data["org-id"];
+      const tuple = result.value as TupleCV;
+      const orgIdVal = tuple.value["org-id"];
       const orgId =
         orgIdVal.type === ClarityType.OptionalSome
-          ? Number(orgIdVal.value.value)
+          ? Number((orgIdVal.value as UIntCV).value)
           : null;
       return { registered: true, orgId };
     }

@@ -3,7 +3,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { request } from "@stacks/connect";
 import { stringAsciiCV } from "@stacks/transactions";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useApp } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -220,7 +219,6 @@ export default function OrganizationPage() {
   };
 
   return (
-    <DashboardLayout>
       <div className="space-y-8 max-w-2xl">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Organization</h1>
@@ -434,6 +432,5 @@ export default function OrganizationPage() {
           )}
         </motion.div>
       </div>
-    </DashboardLayout>
   );
 }
