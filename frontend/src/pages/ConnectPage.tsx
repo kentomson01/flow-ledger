@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/contexts/AppContext";
-import { getMockWalletAddress, mockStxBalance, mockSbtcBalance } from "@/lib/mock-data";
+import { connect } from "@stacks/connect";
+import { fetchStxBalance, fetchSbtcBalance } from "@/lib/stacks-api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { Wallet, Loader2, CheckCircle2, Building2, Briefcase, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 
 type Step = "connect" | "connecting" | "role";
 
@@ -14,12 +16,42 @@ export default function ConnectPage() {
   const { setWallet, setRole, network } = useApp();
   const navigate = useNavigate();
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     setStep("connecting");
-    setTimeout(() => {
-      setWallet({ connected: true, address: getMockWalletAddress(network), stxBalance: mockStxBalance, sbtcBalance: mockSbtcBalance });
+    try {
+      const response = await connect();
+      // Find the STX address from the returned addresses
+      const stxAddr = response.addresses.find(
+        (a: { symbol: string }) => a.symbol === "STX"
+      );
+      if (!stxAddr) {
+        toast.error("No STX address found in wallet");
+        setStep("connect");
+        return;
+      }
+
+      // Fetch on-chain balances
+      const [stxBalance, sbtcBalance] = await Promise.all([
+        fetchStxBalance(stxAddr.address, network),
+        fetchSbtcBalance(stxAddr.address, network),
+      ]);
+
+      setWallet({
+        connected: true,
+        address: stxAddr.address,
+        stxBalance,
+        sbtcBalance,
+      });
       setStep("role");
-    }, 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("User rejected") || msg.includes("cancelled")) {
+        toast.error("Connection cancelled");
+      } else {
+        toast.error("Failed to connect wallet");
+      }
+      setStep("connect");
+    }
   };
 
   const handleRole = (role: "business" | "freelancer") => {

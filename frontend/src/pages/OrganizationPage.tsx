@@ -1,6 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { request } from "@stacks/connect";
+import { stringAsciiCV } from "@stacks/transactions";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useApp } from "@/contexts/AppContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,19 +10,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
-import { truncateAddress, getMockWalletAddress } from "@/lib/mock-data";
-import { getExplorerTxUrl, getExplorerAddressUrl, getErrorMessage } from "@/lib/constants";
+import { truncateAddress } from "@/lib/mock-data";
+import { getExplorerTxUrl, getExplorerAddressUrl, getErrorMessage, CONTRACT_ADDRESS, CONTRACT_NAME } from "@/lib/constants";
+import { fetchBusinessInfo } from "@/lib/stacks-api";
 import { Building2, CheckCircle2, Globe, Hash, User, Plus, Loader2, XCircle, ExternalLink, AlertTriangle, FileText, Link2, Pencil } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { z } from "zod";
 
-type OrgState = "not-registered" | "no-org" | "registered";
+type OrgState = "loading" | "not-registered" | "no-org" | "registered";
 type TxState = "idle" | "pending" | "confirmed" | "failed";
 
-const MOCK_TX_HASH = "0x8a3b1c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890";
-const MOCK_BLOCK_HEIGHT = 142857;
 const ASCII_REGEX = /^[\x20-\x7E]*$/;
+const CONTRACT = `${CONTRACT_ADDRESS}.${CONTRACT_NAME}`;
 
 const createOrgSchema = (network: string) =>
   z.object({
@@ -83,10 +85,9 @@ function TxStatusCard({ txState, txHash, errorCode, onRetry }: {
         <div className="rounded-lg border border-success/50 bg-success/5 p-4 space-y-2">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-success" />
-            <span className="text-sm font-medium text-success">Transaction Confirmed</span>
+            <span className="text-sm font-medium text-success">Transaction Submitted</span>
           </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Block #{MOCK_BLOCK_HEIGHT.toLocaleString()}</span>
+          <div className="flex items-center justify-end text-xs text-muted-foreground">
             <a href={getExplorerTxUrl(txHash)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
               View on Explorer <ExternalLink className="h-3 w-3" />
             </a>
@@ -109,20 +110,39 @@ function TxStatusCard({ txState, txHash, errorCode, onRetry }: {
 
 export default function OrganizationPage() {
   const { wallet, network } = useApp();
-  const [orgState, setOrgState] = useState<OrgState>("not-registered");
+  const [orgState, setOrgState] = useState<OrgState>("loading");
   const [txState, setTxState] = useState<TxState>("idle");
+  const [txHash, setTxHash] = useState("");
+  const [errorCode, setErrorCode] = useState<string | undefined>();
   const [txAnnouncement, setTxAnnouncement] = useState("");
   const [savedOrg, setSavedOrg] = useState<OrgFormData | null>(null);
 
   const networkLabel = network.charAt(0).toUpperCase() + network.slice(1);
   const isDisabled = txState === "pending";
 
+  // Check on-chain registration status on mount
+  useEffect(() => {
+    if (!wallet.address) {
+      setOrgState("not-registered");
+      return;
+    }
+    fetchBusinessInfo(wallet.address, network).then((info) => {
+      if (!info.registered) {
+        setOrgState("not-registered");
+      } else if (info.orgId === null) {
+        setOrgState("no-org");
+      } else {
+        setOrgState("registered");
+      }
+    });
+  }, [wallet.address, network]);
+
   const form = useForm<OrgFormData>({
     resolver: zodResolver(createOrgSchema(network)),
     defaultValues: {
       name: "",
       description: "",
-      stxAddress: wallet.address || getMockWalletAddress(network),
+      stxAddress: wallet.address || "",
       website: "",
     },
     mode: "onBlur",
@@ -131,33 +151,73 @@ export default function OrganizationPage() {
   const nameLength = form.watch("name")?.length || 0;
   const descLength = form.watch("description")?.length || 0;
 
-  const simulateTx = useCallback((onSuccess: () => void, failCode?: string) => {
+  const handleRegister = useCallback(async () => {
     setTxState("pending");
     setTxAnnouncement("Transaction pending. Do not close this page.");
-    setTimeout(() => {
-      const shouldFail = failCode || Math.random() < 0.1;
-      if (shouldFail) {
-        const code = typeof failCode === "string" ? failCode : "u107";
-        setTxState("failed");
-        setTxAnnouncement(`Transaction failed: ${getErrorMessage(code)}`);
-        toast.error(`Transaction failed: ${getErrorMessage(code)}`);
-      } else {
-        setTxState("confirmed");
-        setTxAnnouncement("Transaction confirmed!");
-        toast.success("Transaction confirmed!");
-        setTimeout(() => { setTxState("idle"); onSuccess(); }, 1500);
-      }
-    }, 2500);
-  }, []);
+    try {
+      const result = await request("stx_callContract", {
+        contract: CONTRACT,
+        functionName: "register-business",
+        functionArgs: [],
+        postConditions: [],
+        postConditionMode: "allow",
+        network,
+      });
+      setTxHash(result.txid);
+      setTxState("confirmed");
+      setTxAnnouncement("Transaction submitted!");
+      toast.success("Registration submitted! It will confirm in a few minutes.");
+      setTimeout(() => {
+        setTxState("idle");
+        setOrgState("no-org");
+      }, 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const codeMatch = msg.match(/u\d{3}/);
+      const code = codeMatch ? codeMatch[0] : undefined;
+      setErrorCode(code);
+      setTxState("failed");
+      setTxAnnouncement(`Transaction failed: ${code ? getErrorMessage(code) : msg}`);
+      toast.error(`Transaction failed: ${code ? getErrorMessage(code) : "An error occurred"}`);
+    }
+  }, [network]);
 
-  const handleRegister = () => simulateTx(() => setOrgState("no-org"));
-
-  const onCreateOrg = (data: OrgFormData) => {
+  const onCreateOrg = useCallback(async (data: OrgFormData) => {
     setSavedOrg(data);
-    simulateTx(() => setOrgState("registered"));
-  };
+    setTxState("pending");
+    setTxAnnouncement("Transaction pending. Do not close this page.");
+    try {
+      const result = await request("stx_callContract", {
+        contract: CONTRACT,
+        functionName: "create-organization",
+        functionArgs: [stringAsciiCV(data.name)],
+        postConditions: [],
+        postConditionMode: "allow",
+        network,
+      });
+      setTxHash(result.txid);
+      setTxState("confirmed");
+      setTxAnnouncement("Transaction submitted!");
+      toast.success("Organization created! It will confirm in a few minutes.");
+      setTimeout(() => {
+        setTxState("idle");
+        setOrgState("registered");
+      }, 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const codeMatch = msg.match(/u\d{3}/);
+      const code = codeMatch ? codeMatch[0] : undefined;
+      setErrorCode(code);
+      setTxState("failed");
+      setTxAnnouncement(`Transaction failed: ${code ? getErrorMessage(code) : msg}`);
+      toast.error(`Transaction failed: ${code ? getErrorMessage(code) : "An error occurred"}`);
+    }
+  }, [network]);
 
-  const handleRetry = () => setTxState("idle");
+  const handleRetry = () => {
+    setTxState("idle");
+    setErrorCode(undefined);
+  };
 
   return (
     <DashboardLayout>
@@ -170,6 +230,16 @@ export default function OrganizationPage() {
         <div aria-live="polite" aria-atomic="true" className="sr-only">{txAnnouncement}</div>
 
         <motion.div key={orgState} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          {/* Loading state */}
+          {orgState === "loading" && (
+            <Card className="glass-card">
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
+                <p className="text-sm text-muted-foreground">Checking on-chain registration...</p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Step 1: Register */}
           {orgState === "not-registered" && (
             <Card className="glass-card">
@@ -188,7 +258,7 @@ export default function OrganizationPage() {
                 <div className="bg-muted/50 rounded-lg p-4 mb-4 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Wallet</span>
-                    <span className="font-mono text-xs">{truncateAddress(wallet.address || getMockWalletAddress(network))}</span>
+                    <span className="font-mono text-xs">{truncateAddress(wallet.address || "")}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Network</span>
@@ -198,7 +268,7 @@ export default function OrganizationPage() {
                 <Button onClick={handleRegister} disabled={isDisabled} className="gradient-primary border-0 text-white hover:opacity-90 w-full">
                   {txState === "pending" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Registering...</> : "Register as Business"}
                 </Button>
-                <TxStatusCard txState={txState} txHash={MOCK_TX_HASH} onRetry={handleRetry} />
+                <TxStatusCard txState={txState} txHash={txHash} errorCode={errorCode} onRetry={handleRetry} />
               </CardContent>
             </Card>
           )}
@@ -306,7 +376,7 @@ export default function OrganizationPage() {
                     </Button>
                   </form>
                 </Form>
-                <TxStatusCard txState={txState} txHash={MOCK_TX_HASH} onRetry={handleRetry} />
+                <TxStatusCard txState={txState} txHash={txHash} errorCode={errorCode} onRetry={handleRetry} />
               </CardContent>
             </Card>
           )}
